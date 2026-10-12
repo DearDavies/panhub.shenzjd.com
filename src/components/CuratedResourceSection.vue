@@ -7,9 +7,31 @@
       <h2 class="curated-head__text">精选资源</h2>
     </div>
 
+    <!-- 分类筛选 chips（对齐官方站 2026-10-12）：客户端过滤，不加接口。
+         只有一个分类时没有筛选意义，整行隐藏；「全部」永远在最前。 -->
+    <div v-if="chips.length > 1" class="curated-cats" role="tablist">
+      <button
+        type="button"
+        :class="['curated-cat', { 'curated-cat--on': activeCat === 'all' }]"
+        @click="activeCat = 'all'"
+      >
+        全部
+      </button>
+      <button
+        v-for="cat in chips"
+        :key="cat.key"
+        type="button"
+        :class="['curated-cat', { 'curated-cat--on': activeCat === cat.key }]"
+        @click="activeCat = activeCat === cat.key ? 'all' : cat.key"
+      >
+        <span aria-hidden="true">{{ cat.emoji }}</span>
+        {{ cat.label }}
+      </button>
+    </div>
+
     <div class="curated-list">
       <a
-        v-for="item in items"
+        v-for="item in filteredItems"
         :key="item.id"
         class="curated-item"
         :href="item.url"
@@ -43,9 +65,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { PLATFORM_INFO } from "../config/platforms";
 import { API_BASE } from "../config";
+import { CURATED_CATEGORIES, DEFAULT_CURATED_CATEGORY } from "../config/curatedCategories";
 
 /**
  * 网盘资源精选（对齐官方站 2026-09-22）
@@ -74,6 +97,8 @@ interface CuratedItem {
   name: string;
   url: string;
   note?: string;
+  /** 分类 key（服务端规整过；老缓存响应可能没有 → 归默认分类） */
+  category?: string;
   platform: string;
   /** 服务端解析出的提取码；已拼在链接上，界面不展示（见文件头注释） */
   password?: string;
@@ -86,6 +111,20 @@ interface CuratedResponse {
 }
 
 const items = ref<CuratedItem[]>([]);
+/** 当前选中的分类（"all" = 不过滤） */
+const activeCat = ref<string>("all");
+
+const catOf = (it: CuratedItem): string => it.category || DEFAULT_CURATED_CATEGORY;
+
+/** chips：只出「实际有资源」的分类（空分类点了没东西，纯噪声），顺序跟字典一致 */
+const chips = computed(() => {
+  const present = new Set(items.value.map(catOf));
+  return CURATED_CATEGORIES.filter((c) => present.has(c.key));
+});
+
+const filteredItems = computed(() =>
+  activeCat.value === "all" ? items.value : items.value.filter((it) => catOf(it) === activeCat.value)
+);
 
 const platformIcon = (t: string): string => PLATFORM_INFO[t]?.icon || PLATFORM_INFO.others.icon;
 const platformName = (t: string): string => PLATFORM_INFO[t]?.name || PLATFORM_INFO.others.name;
@@ -141,6 +180,47 @@ onMounted(fetchItems);
   font-weight: 700;
   letter-spacing: 0.02em;
   color: var(--text-secondary);
+}
+
+/* 分类 chips（对齐官方站 2026-10-12）：横向滚动，细边框胶囊，选中态主色描边+浅底 */
+.curated-cats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.curated-cats::-webkit-scrollbar {
+  display: none;
+}
+
+.curated-cat {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.curated-cat:hover {
+  color: var(--primary);
+  border-color: var(--primary-soft-border, rgba(37, 99, 235, 0.35));
+}
+
+.curated-cat--on {
+  color: var(--primary);
+  background: var(--primary-soft-bg, rgba(37, 99, 235, 0.08));
+  border-color: var(--primary);
 }
 
 /* 去掉每条底色，靠行距分隔；无底色后文字成为主角，hover 才给一层淡底。
