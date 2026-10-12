@@ -5,6 +5,14 @@
     <div class="curated-head">
       <span class="curated-head__bar" aria-hidden="true" />
       <h2 class="curated-head__text">精选资源</h2>
+      <!-- 合集入口放标题行右侧（对齐官方站 2026-10-12）：放区块底部几乎看不到 -->
+      <a
+        class="curated-head__more"
+        href="https://panhub.shenzjd.com/resources"
+        target="_blank"
+        rel="noopener noreferrer">
+        全部资源合集 <span aria-hidden="true">→</span>
+      </a>
     </div>
 
     <!-- 分类筛选 chips（对齐官方站 2026-10-12）：客户端过滤，不加接口。
@@ -59,17 +67,6 @@
           <span class="curated-item__go-text">去保存</span>
           <span aria-hidden="true">→</span>
         </span>
-      </a>
-    </div>
-
-    <!-- 资源合集入口（对齐官方站 2026-10-12）：全量合集在官方站 /resources 独立页 -->
-    <div class="curated-more">
-      <a
-        class="curated-more__link"
-        href="https://panhub.shenzjd.com/resources"
-        target="_blank"
-        rel="noopener noreferrer">
-        查看全部资源合集 <span aria-hidden="true">→</span>
       </a>
     </div>
   </section>
@@ -293,22 +290,20 @@ onMounted(fetchItems);
   word-break: break-word;
 }
 
-/* 资源合集入口（对齐官方站 2026-10-12） */
-.curated-more {
-  padding: 4px 10px 2px;
-}
-
-.curated-more__link {
+/* 资源合集入口（对齐官方站 2026-10-12）：标题行右侧，始终可见 */
+.curated-head__more {
+  margin-left: auto;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 13px;
+  gap: 3px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--primary);
   text-decoration: none;
+  white-space: nowrap;
 }
 
-.curated-more__link:hover {
+.curated-head__more:hover {
   text-decoration: underline;
 }
 
