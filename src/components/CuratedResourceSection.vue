@@ -5,12 +5,8 @@
     <div class="curated-head">
       <span class="curated-head__bar" aria-hidden="true" />
       <h2 class="curated-head__text">精选资源</h2>
-      <!-- 合集入口放标题行右侧（对齐官方站 2026-10-12）：放区块底部几乎看不到 -->
-      <a
-        class="curated-head__more"
-        href="https://panhub.shenzjd.com/resources"
-        target="_blank"
-        rel="noopener noreferrer">
+      <!-- 合集入口放标题行右侧（对齐官方站 2026-10-12）：合集区块就在首页下方，锚点滚过去 -->
+      <a class="curated-head__more" href="#resource-collection">
         全部资源合集 <span aria-hidden="true">→</span>
       </a>
     </div>

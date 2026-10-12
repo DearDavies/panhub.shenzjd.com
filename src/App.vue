@@ -195,6 +195,12 @@
         <CuratedResourceSection />
       </section>
 
+      <!-- 资源合集（对齐官方站 2026-10-12）：1849 个精选资源直接放首页，
+           分类 chips + 分批加载；数据跨域取官方站，懒加载。搜索时隐藏 -->
+      <section v-show="!searched" id="resource-collection" class="collection-wrap">
+        <ResourceCollectionSection />
+      </section>
+
     </main>
 
     <footer class="site-footer">
@@ -221,6 +227,7 @@ import TransferStatusDialog from "./components/TransferStatusDialog.vue";
 import { useTransfer } from "./composables/useTransfer";
 import HotKeywordSection from "./components/HotKeywordSection.vue";
 import CuratedResourceSection from "./components/CuratedResourceSection.vue";
+import ResourceCollectionSection from "./components/ResourceCollectionSection.vue";
 import NoticeModal from "./components/NoticeModal.vue";
 import { API_BASE } from "./config";
 import { useSearch } from "./composables/useSearch";
