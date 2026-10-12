@@ -290,21 +290,28 @@ onMounted(fetchItems);
   word-break: break-word;
 }
 
-/* 资源合集入口（对齐官方站 2026-10-12）：标题行右侧，始终可见 */
+/* 资源合集入口（对齐官方站 2026-10-12）：标题行右侧实心按钮 */
 .curated-head__more {
   margin-left: auto;
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--primary);
+  gap: 4px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
   text-decoration: none;
   white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.25);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .curated-head__more:hover {
-  text-decoration: underline;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 118, 110, 0.35);
+  text-decoration: none;
 }
 
 /* 备注与名称的灰度/字号再拉开一档：让"名称"先被看到，"说明"退到第二眼 */
