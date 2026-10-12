@@ -61,6 +61,17 @@
         </span>
       </a>
     </div>
+
+    <!-- 资源合集入口（对齐官方站 2026-10-12）：全量合集在官方站 /resources 独立页 -->
+    <div class="curated-more">
+      <a
+        class="curated-more__link"
+        href="https://panhub.shenzjd.com/resources"
+        target="_blank"
+        rel="noopener noreferrer">
+        查看全部资源合集 <span aria-hidden="true">→</span>
+      </a>
+    </div>
   </section>
 </template>
 
@@ -280,6 +291,25 @@ onMounted(fetchItems);
   line-height: 1.45;
   color: var(--text-primary);
   word-break: break-word;
+}
+
+/* 资源合集入口（对齐官方站 2026-10-12） */
+.curated-more {
+  padding: 4px 10px 2px;
+}
+
+.curated-more__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.curated-more__link:hover {
+  text-decoration: underline;
 }
 
 /* 备注与名称的灰度/字号再拉开一档：让"名称"先被看到，"说明"退到第二眼 */
