@@ -38,6 +38,13 @@ type ShareDelivery = {
   passcode: string;
   name: string;
   driver: string;
+  /**
+   * 该用户在这个盘型上的**首次**真实转存（后端 first_use）。
+   * 2026-10-26 起用于新用户首存引导：CPS 收益几乎只由「新用户完成首次保存」
+   * 贡献（面板实测单次有效 0.12~6.20 元，差 50 倍），而新用户最容易卡在
+   * 「口令拿到了、但没点保存到我的网盘」这一步。
+   */
+  firstUse?: boolean;
 };
 const shareDeliveryCache = ref<Record<string, ShareDelivery>>({});
 
@@ -52,7 +59,43 @@ function rememberDelivery(key: string, data: any, url: string): void {
     // 后端下发的 driver 是权威值（"other" 表示未接入转存的盘型）；
     // 早期路径没有该字段时按链接域名兜底
     driver: String(data?.driver || driverOf(link) || ""),
+    // 拉新分层信号：true = 该用户首次在这个盘型上拿到我们的分享
+    firstUse: data?.first_use === true,
   };
+}
+
+/**
+ * 每日预算打满记忆（对齐官方站 2026-10-26）：键 = 盘型，值 = 北京时间日期串。
+ *
+ * 官方站线上实证：预算闸一天挡掉 324 次点击（占全天 33%），单个用户对同一盘型
+ * 连点 53 次——后端每次都在内存里 1ms 挡回去，但用户完全不知道发生了什么，
+ * 数据也被噪声污染。这里记住「今天这个盘型已打满」，把按钮文案改成
+ * 「获取原链接」，点击前就消除误解；跨日（北京时间 0 点）自动失效。
+ * 只存模块级内存，刷新即丢——最坏多打一次请求，绝不误拦可用额度。
+ */
+const budgetReached = ref<Record<string, string>>({});
+
+/** 预算用完的默认话术（服务端下发 message 优先） */
+const BUDGET_MSG =
+  "今日该网盘获取次数已达上限，已为你准备原始链接，明天 0 点后恢复";
+
+/** 北京时间日期键（与服务端 formatDateKey 同口径，0 点翻篇即失效） */
+function todayKeyBjt(): string {
+  return new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
+}
+
+function isBudgetReached(driver?: string | null): boolean {
+  return !!driver && budgetReached.value[driver] === todayKeyBjt();
+}
+
+function markBudgetReached(driver?: string | null): void {
+  if (!driver) return;
+  budgetReached.value[driver] = todayKeyBjt();
+}
+
+/** 供列表层做按钮文案（ResultGroup 消费） */
+export function isDriverBudgetReached(driver?: string | null): boolean {
+  return isBudgetReached(driver);
 }
 
 /** key → 失效原因（dead 后再点直接展示） */
@@ -95,6 +138,8 @@ type TransferDialogStatus =
   | "dead"
   | "fallback"
   | "limited"
+  /** 该盘型今日代存额度已用完（2026-10-26）：仍有原链接可保存，但要显性说明 */
+  | "budget"
   | "error";
 
 const dialogOpen = ref(false);
@@ -175,6 +220,9 @@ export function useTransfer(onAuthRequired?: () => Promise<boolean> | boolean) {
     tid?: string;
     url: string;
     name?: string;
+    /** 盘型（列表层的分组 key，如 quark/baidu）：直链已被后端全量剥离，
+     *  前端拿不到 url，只能由调用方带下来——用于「今日额度已满」的本地记忆 */
+    driver?: string;
   }): Promise<void> {
     const key = item.tid || item.url;
     if (!key) return;
@@ -281,11 +329,24 @@ export function useTransfer(onAuthRequired?: () => Promise<boolean> | boolean) {
         // ③ 未获取到新链接（风控/容量等）：中性原因 + 保留原链接复制入口；
         //    状态回 idle，稍后可重试
         if (resp.code === 0 && resp.data?.fallback) {
+          // 每日预算打满（对齐官方站 2026-10-26）：与「瞬时回退」分开表达——
+          // 前者当天不会变好，必须说清"是额度用完了、给的是原始链接"，否则用户
+          // 会以为自己点失败而反复重点（官方站实证单用户连点 53 次）。
+          const budgetHit = resp.data.kind === "daily_budget";
           const msg =
             typeof resp.data.message === "string" && resp.data.message
               ? resp.data.message
-              : "未能获取到新链接，已为你准备原始链接";
+              : budgetHit
+                ? BUDGET_MSG
+                : "未能获取到新链接，已为你准备原始链接";
           const origin = resp.data.share_url || item.url;
+          if (budgetHit) {
+            markBudgetReached(
+              String(resp.data.driver || "") ||
+                item.driver ||
+                driverOf(origin || "")
+            );
+          }
           if (origin) {
             // 兜底也是交付（2026-09-21 用户反馈）：复制给用户的必须是**口令文本**，
             // 裸 URL 粘进各盘 APP 没反应（APP 靠剪贴板识别口令）——同时留一份结构化
@@ -295,7 +356,10 @@ export function useTransfer(onAuthRequired?: () => Promise<boolean> | boolean) {
           }
           statusMap.value[key] = "idle";
           await ensureMinLoading(startedAt);
-          failTransferDialog(msg, origin ? "fallback" : "error");
+          failTransferDialog(
+            msg,
+            origin ? (budgetHit ? "budget" : "fallback") : "error"
+          );
           return;
         }
 

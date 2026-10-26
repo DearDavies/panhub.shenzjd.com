@@ -104,7 +104,7 @@
 
 <script setup lang="ts">
 import { computed, watch } from "vue";
-import { useTransfer } from "../composables/useTransfer";
+import { isDriverBudgetReached, useTransfer } from "../composables/useTransfer";
 import { useLinkCheck } from "../composables/useLinkCheck";
 import type { MergedLink } from "../types";
 
@@ -117,6 +117,9 @@ const props = defineProps<{
   initialVisible: number;
   /** 是否在卡片头部显示「展开」（默认由底部按钮承担） */
   canToggleCollapse?: boolean;
+  /** 盘型 key（分组 key，如 quark/baidu）：直链已被后端剥离，前端唯一能知道
+   *  盘型的来源，用于「今日额度已用完」的本地记忆与按钮文案（2026-10-26） */
+  type?: string;
 }>();
 
 defineEmits(["toggle"]);
@@ -124,6 +127,9 @@ defineEmits(["toggle"]);
 // 「获取」：状态与请求都在 useTransfer 单例里，同一资源在多个卡片/分组间共享状态，
 // 避免重复请求；无 tid 的条目（正版合规源等）同样走后端，由服务端交付并计费
 const { statusOf: transferStatus, requestTransfer, anyBusy: transferBusy } = useTransfer();
+// 该盘型今日代存额度是否已打满：打满后点击照样能拿到**原始链接**，
+// 只是文案要说清"拿的是原链接"，避免用户以为点失败而反复重试
+const budgetFull = computed(() => isDriverBudgetReached(props.type));
 
 // 链接有效性检测（服务端探活，异步懒查当前可见链接）。
 // 必须声明在 isTransferBtnDisabled / handleGet 之前：两者在渲染期都会读探活结果，
@@ -163,6 +169,9 @@ function transferBtnLabel(r: MergedLink): string {
   if (st === "loading") return "获取中…";
   if (st === "done") return "已获取";
   if (st === "dead") return "已失效";
+  // 该盘型今日额度已用完：仍可点，但拿到的是原始分享链接——先说清楚，
+  // 不让用户以为是自己点失败（2026-10-26）
+  if (budgetFull.value) return "获取原链接";
   // 疑似失效：文案保留"可以点"的语义，不用「已失效」这种结论式措辞
   if (linkStatus(r) === "bad") return "仍要试试";
   return transferBusy.value ? "排队中…" : "立即获取";
@@ -173,6 +182,7 @@ function btnTitle(r: MergedLink): string {
   const st = getStatus(r);
   if (st === "done") return "点击查看并复制获取的内容";
   if (st === "loading") return "正在获取";
+  if (budgetFull.value) return "该网盘今日代存额度已用完，点击获取原始分享链接";
   if (transferBusy.value) return "正在获取其他资源，请稍候";
   if (linkStatus(r) === "bad") return "系统探测该资源可能已失效，仍可点击尝试获取";
   return "立即获取资源";
@@ -182,13 +192,43 @@ async function handleGet(r: MergedLink) {
   // 所有条目统一可点，点标题与点「获取」按钮走同一入口。
   // 疑似失效（探活 bad）不再拦——它只是猜测，交给 requestTransfer 用真实转存
   // 确认；已确认失效（dead）由 useTransfer 内部兜底提示，不发请求。
-  await requestTransfer({ tid: r.tid, url: r.url, name: r.note });
+  await requestTransfer({
+    tid: r.tid,
+    url: r.url,
+    name: r.note,
+    // 直链已剥离，盘型只能由分组 key 带下来
+    driver: props.type,
+  });
 }
+
+/**
+ * 死链沉底（对齐官方站 2026-10-26）。
+ *
+ * 线上依据：夸克探活 ok 10679 / bad 6351（37%），bad 主要是「好友已取消了分享」
+ * 「分享者用户封禁」「分享地址已失效」「文件不存在」；另有 67 次「点了获取 →
+ * expired」是纯白丢的点击。原先 bad 只打个琥珀角标、位置不动——用户第一眼
+ * 点到的很可能就是死链。
+ *
+ * 口径不变（2026-09-23 拍板）：只**重排**，不隐藏、不禁用、不改文案结论——
+ * 探活只是猜测，条目必须始终可点。排序稳定：非死链保持原有相关性顺序，
+ * 死链内部也保持原顺序；每条状态只会从「未知」翻成「bad」一次，因此每条最多
+ * 移动一次，不会反复跳动。默认折叠在 initialVisible 之后，死链自然落到
+ * 「显示更多」里。
+ */
+const orderedItems = computed(() => {
+  const items = props.items || [];
+  const alive: MergedLink[] = [];
+  const dead: MergedLink[] = [];
+  for (const r of items) (linkStatus(r) === "bad" ? dead : alive).push(r);
+  return dead.length ? alive.concat(dead) : items;
+});
 
 // 注意：visibleItems 必须先于下方 watch 声明——watch({ immediate: true }) 会在
 // setup 执行到 watch 行时立即求值 getter，若声明在后会触发 TDZ。
 const visibleItems = computed(() =>
-  props.expanded ? props.items : props.items.slice(0, props.initialVisible)
+  props.expanded
+    ? orderedItems.value
+    : orderedItems.value.slice(0, props.initialVisible)
 );
 
 // 只探活「当前可见」的条目：展开更多时自动补探，避免一次性把整页几百条打给后端

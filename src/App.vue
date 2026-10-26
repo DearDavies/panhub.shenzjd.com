@@ -116,6 +116,7 @@
           <ResultGroup
             v-for="group in groupedResults"
             :key="group.type"
+            :type="group.type"
             :title="platformInfo(group.type).name"
             :color="platformInfo(group.type).color"
             :icon="platformInfo(group.type).icon"

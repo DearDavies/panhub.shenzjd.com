@@ -34,6 +34,34 @@
              旁边留一个小复制按钮备用。不限盘型：阿里云盘这类未接入转存的同样摊开；
              磁力只给地址不出码（手机没有应用接得住 magnet:）。 -->
         <div v-if="showResourcePanel" class="tsd-status tsd-status--res">
+          <!-- 今日该盘型额度用完（对齐官方站 2026-10-26）：给的仍是**可用**的
+               原始分享链接，但必须把「为什么没拿到新链接」说在前面——用户看不到
+               原因就会以为自己点失败，同一盘型连点上几十次 -->
+          <p v-if="dialogStatus === 'budget'" class="tsd-budget-tip">
+            <span class="tsd-budget-badge">今日额度已用完</span>
+            {{ dialogMsg || "已为你准备原始分享链接，明天 0 点后恢复代存" }}
+          </p>
+
+          <!-- 新用户首存引导（对齐官方站 2026-10-26）：first_use=true 表示这是该
+               用户第一次在这个盘型上拿到我们的分享。CPS 收益几乎全由「新用户第一次
+               保存到自己的网盘」贡献（面板实测单次有效 0.12~6.20 元），而新用户最
+               容易卡在「口令拿到了、但没点保存」这一步。老用户不展示，免得刷屏。 -->
+          <div v-if="isFirstUse" class="tsd-newbie">
+            <p class="tsd-newbie-head">第一次用{{ qrAppLabel }}？务必点「保存到我的网盘」</p>
+            <p class="tsd-newbie-step">
+              <span class="tsd-newbie-n">1</span>
+              <span>{{
+                isDesktop && qrUrlText
+                  ? "用手机扫上面的二维码打开分享"
+                  : "点开上面的资源地址（或复制后到 APP 粘贴）"
+              }}</span>
+            </p>
+            <p class="tsd-newbie-step">
+              <span class="tsd-newbie-n">2</span>
+              <span>在分享页点<b>「保存到我的网盘」</b>——存完这份资源就永久在你自己的网盘里了</span>
+            </p>
+          </div>
+
           <template v-if="isDesktop && qrUrlText">
             <p class="tsd-sub">打开{{ qrAppLabel }} → 找到「扫一扫」→ 扫码</p>
             <!-- 没装 APP 的人也必须给一条路：手机相机/浏览器扫码走网页版同样能保存 -->
@@ -155,7 +183,9 @@ const qrUrlText = computed(() => {
  *  桌面端是二维码（手机扫），手机端是可直接点开的资源地址。 */
 const showResourcePanel = computed(
   () =>
-    (dialogStatus.value === "ready" || dialogStatus.value === "fallback") &&
+    (dialogStatus.value === "ready" ||
+      dialogStatus.value === "fallback" ||
+      dialogStatus.value === "budget") &&
     !!dialogDelivery.value?.url
 );
 
@@ -166,6 +196,10 @@ const qrAppLabel = computed(() =>
   qrAppName.value === "对应网盘" ? "网盘 APP" : qrAppName.value
 );
 const qrName = computed(() => dialogDelivery.value?.name || "");
+/** 新用户首存引导（对齐官方站 2026-10-26）：只对「该盘型首次拿到我们的分享」展示 */
+const isFirstUse = computed(
+  () => dialogStatus.value === "ready" && dialogDelivery.value?.firstUse === true
+);
 /** 提取码：不一定能塞进二维码（139 是 hash 路由、UC 是公开分享），所以单独
  *  展示 + 可复制——网盘 APP 没自动填码时用户有兜底 */
 const qrPasscode = computed(() => dialogDelivery.value?.passcode || "");
@@ -218,11 +252,13 @@ const dialogTitle = computed(() => {
         ? "用手机扫码获取"
         : `请使用 ${qrAppName.value}APP 扫码获取`;
     }
+    if (dialogStatus.value === "budget") return "该网盘今日额度已用完";
     return dialogStatus.value === "fallback" ? "为你准备了原始链接" : "获取成功";
   }
   if (dialogStatus.value === "loading") return "正在获取";
   // 兜底：拿到交付数据但没走到资源面板（理论不可达）
   if (dialogStatus.value === "ready") return "获取成功";
+  if (dialogStatus.value === "budget") return "该网盘今日额度已用完";
   if (dialogStatus.value === "fallback") return "为你准备了原始链接";
   if (dialogStatus.value === "limited") return "该网盘今日已达上限";
   if (dialogStatus.value === "dead") return "该资源已失效";
@@ -386,6 +422,80 @@ onBeforeUnmount(() => {
   justify-content: flex-start;
   min-height: 0;
   gap: 10px;
+}
+
+/* 今日额度用完的说明条：琥珀色弱提示，与「失败红」区分——资源本身可用 */
+.tsd-budget-tip {
+  width: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-secondary, #4b5563);
+  text-align: left;
+}
+.tsd-budget-badge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(245, 158, 11, 0.22);
+  color: #b45309;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* 新用户首存引导：琥珀色（正向、非警告），是新用户唯一会认真读的地方 */
+.tsd-newbie {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: linear-gradient(
+    180deg,
+    rgba(245, 158, 11, 0.12),
+    rgba(245, 158, 11, 0.05)
+  );
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  text-align: left;
+}
+.tsd-newbie-head {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #b45309;
+}
+.tsd-newbie-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0 0 6px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-secondary, #4b5563);
+}
+.tsd-newbie-step:last-child {
+  margin-bottom: 0;
+}
+.tsd-newbie-step b {
+  color: var(--text-primary, #111827);
+}
+.tsd-newbie-n {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: rgba(245, 158, 11, 0.9);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
 }
 .tsd-qr-btn {
   display: block;
